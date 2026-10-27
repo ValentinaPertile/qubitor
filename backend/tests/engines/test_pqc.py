@@ -1,4 +1,10 @@
+from app.engines.base import Severity
 from app.engines.crypto.pqc import _iter_files, scan_pqc
+
+
+def _escanear(tmp_path, codigo):
+    (tmp_path / "app.py").write_text(codigo)
+    return scan_pqc(str(tmp_path))
 
 
 def test_repo_vacio_devuelve_lista_vacia(tmp_path):
@@ -25,3 +31,53 @@ def test_ignora_carpetas_de_dependencias(tmp_path):
     encontrados = [p.name for p in _iter_files(tmp_path, ".py")]
 
     assert encontrados == ["app.py"]
+
+
+# --- RSA ---
+
+def test_detecta_generacion_de_clave_rsa(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import rsa\n"
+        "\n"
+        "clave = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n"
+    ))
+
+    assert len(hallazgos) == 1
+    h = hallazgos[0]
+    assert h.rule_id == "crypto.pqc.rsa-keygen"
+    assert h.severity == Severity.MEDIUM
+    assert h.file_path == "app.py"
+    assert h.line == 3
+    assert "generate_private_key" in h.snippet
+
+
+def test_detecta_rsa_importando_la_funcion_directamente(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key\n"
+        "clave = generate_private_key(65537, 3072)\n"
+    ))
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.rsa-keygen"]
+
+
+def test_detecta_rsa_con_alias(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "import cryptography.hazmat.primitives.asymmetric.rsa as r\n"
+        "clave = r.generate_private_key(65537, 2048)\n"
+    ))
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.rsa-keygen"]
+
+
+def test_no_detecta_rsa_en_comentarios_ni_textos(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "# rsa.generate_private_key(65537, 2048)\n"
+        "ayuda = 'usar rsa.generate_private_key para crear claves'\n"
+    ))
+    assert hallazgos == []
+
+
+def test_no_detecta_objeto_propio_llamado_rsa(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from mi_app import servicio as rsa\n"
+        "rsa.generate_private_key()\n"
+    ))
+    assert hallazgos == []
