@@ -147,3 +147,55 @@ def test_detecta_diffie_hellman_con_parametros_manuales(tmp_path):
         "numeros = dh.DHParameterNumbers(p=23, g=5)\n"
     ))
     assert [h.rule_id for h in hallazgos] == ["crypto.pqc.dh"]
+
+
+# --- AES (Grover) e inventario ---
+
+AESGCM_IMPORT = "from cryptography.hazmat.primitives.ciphers.aead import AESGCM\n"
+ALGORITHMS_IMPORT = "from cryptography.hazmat.primitives.ciphers import algorithms\n"
+
+
+def test_aes_128_es_severidad_baja(tmp_path):
+    hallazgos = _escanear(tmp_path, AESGCM_IMPORT + "clave = AESGCM.generate_key(bit_length=128)\n")
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.aes-128"]
+    assert hallazgos[0].severity == Severity.LOW
+
+
+def test_aes_128_con_el_tamano_por_posicion(tmp_path):
+    hallazgos = _escanear(tmp_path, AESGCM_IMPORT + "clave = AESGCM.generate_key(128)\n")
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.aes-128"]
+
+
+def test_aes_256_va_al_inventario(tmp_path):
+    hallazgos = _escanear(tmp_path, AESGCM_IMPORT + "clave = AESGCM.generate_key(bit_length=256)\n")
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.inventory.aes"]
+    assert hallazgos[0].severity == Severity.INFO
+    assert hallazgos[0].metadata["algorithm"] == "AES-256"
+
+
+def test_aes_con_tamano_en_variable_va_al_inventario_sin_tamano(tmp_path):
+    hallazgos = _escanear(tmp_path, AESGCM_IMPORT + "clave = AESGCM.generate_key(bit_length=TAMANO)\n")
+
+    assert hallazgos[0].severity == Severity.INFO
+    assert hallazgos[0].metadata["algorithm"] == "AES"
+
+
+def test_clases_aes128_y_aes256_de_algorithms(tmp_path):
+    hallazgos = _escanear(tmp_path, ALGORITHMS_IMPORT + (
+        "a = algorithms.AES128(clave)\n"
+        "b = algorithms.AES256(clave)\n"
+    ))
+
+    assert [(h.rule_id, h.severity) for h in hallazgos] == [
+        ("crypto.pqc.aes-128", Severity.LOW),
+        ("crypto.pqc.inventory.aes", Severity.INFO),
+    ]
+
+
+def test_aes_generico_va_al_inventario(tmp_path):
+    hallazgos = _escanear(tmp_path, ALGORITHMS_IMPORT + "cifrado = algorithms.AES(clave)\n")
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.inventory.aes"]
+    assert hallazgos[0].metadata["algorithm"] == "AES"

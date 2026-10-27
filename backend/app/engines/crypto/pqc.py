@@ -10,7 +10,7 @@ Módulo C) llama a `scan_pqc` y junta sus resultados con los de `classic.py`.
 """
 
 import ast
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,10 +47,49 @@ def _shor_rule(rule_id: str, algorithm: str, title: str) -> _Rule:
     )
 
 
-_ASYMMETRIC = "cryptography.hazmat.primitives.asymmetric"
+_AES_128 = _Rule(
+    rule_id="crypto.pqc.aes-128",
+    algorithm="AES-128",
+    title="Cifrado AES-128 debilitado por computación cuántica",
+    severity=Severity.LOW,
+    description=(
+        "AES-128 es vulnerable al algoritmo de Grover: una computadora cuántica "
+        "reduciría su seguridad efectiva a la mitad (de 128 a 64 bits). Para "
+        "datos que deben seguir siendo secretos por muchos años, preferir AES-256."
+    ),
+)
 
-# Reglas por llamada: nombre completo de la función → regla que dispara.
-CALL_RULES = {
+
+def _aes_inventory(algorithm: str) -> _Rule:
+    """Uso de AES sin riesgo post-cuántico conocido: solo va al inventario (CBOM)."""
+    return _Rule(
+        rule_id="crypto.pqc.inventory.aes",
+        algorithm=algorithm,
+        title=f"Uso de {algorithm} (inventario criptográfico)",
+        severity=Severity.INFO,
+        description=(
+            f"Uso de {algorithm} registrado en el inventario criptográfico (CBOM). "
+            "Si el tamaño de clave no se pudo determinar, verificar que sea de 256 bits."
+        ),
+    )
+
+
+def _aes_by_key_size(node: ast.Call) -> _Rule:
+    """Elige la regla de AES según el tamaño de clave pedido: generate_key(bit_length=N)."""
+    bits = _int_argument(node, position=0, keyword="bit_length")
+    if bits == 128:
+        return _AES_128
+    if bits is None:
+        return _aes_inventory("AES")
+    return _aes_inventory(f"AES-{bits}")
+
+
+_ASYMMETRIC = "cryptography.hazmat.primitives.asymmetric"
+_CIPHERS = "cryptography.hazmat.primitives.ciphers"
+
+# Reglas por llamada: nombre completo de la función → regla que dispara, o una
+# función que mira los argumentos de la llamada y elige la regla.
+CALL_RULES: dict[str, _Rule | Callable[[ast.Call], _Rule]] = {
     f"{_ASYMMETRIC}.rsa.generate_private_key": _shor_rule(
         "crypto.pqc.rsa-keygen", "RSA",
         "Generación de clave RSA vulnerable a computación cuántica",
@@ -75,6 +114,10 @@ CALL_RULES = {
         "crypto.pqc.dh", "DH",
         "Intercambio de claves Diffie-Hellman vulnerable a computación cuántica",
     ),
+    f"{_CIPHERS}.algorithms.AES128": _AES_128,
+    f"{_CIPHERS}.algorithms.AES256": _aes_inventory("AES-256"),
+    f"{_CIPHERS}.algorithms.AES": _aes_inventory("AES"),
+    f"{_CIPHERS}.aead.AESGCM.generate_key": _aes_by_key_size,
 }
 
 
@@ -116,6 +159,8 @@ def _scan_python_tree(tree: ast.Module, file_path: str) -> list[Finding]:
         if not isinstance(node, ast.Call):
             continue
         rule = CALL_RULES.get(_qualified_name(node.func, aliases))
+        if callable(rule):
+            rule = rule(node)
         if rule is not None:
             findings.append(_make_finding(rule, node, file_path))
     return findings
@@ -159,6 +204,23 @@ def _qualified_name(func: ast.expr, aliases: dict[str, str]) -> str | None:
     if base is None:
         return None
     return ".".join([base, *reversed(parts)])
+
+
+def _int_argument(node: ast.Call, position: int, keyword: str) -> int | None:
+    """Devuelve un argumento entero escrito literalmente en la llamada.
+
+    Lo busca por nombre (`bit_length=128`) o por posición (`generate_key(128)`).
+    Si el valor es una variable o no está, devuelve None: no se puede saber.
+    """
+    value = None
+    for kw in node.keywords:
+        if kw.arg == keyword:
+            value = kw.value
+    if value is None and len(node.args) > position:
+        value = node.args[position]
+    if isinstance(value, ast.Constant) and isinstance(value.value, int):
+        return value.value
+    return None
 
 
 def _make_finding(rule: _Rule, node: ast.Call, file_path: str) -> Finding:
