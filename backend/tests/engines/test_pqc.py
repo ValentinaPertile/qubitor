@@ -81,3 +81,47 @@ def test_no_detecta_objeto_propio_llamado_rsa(tmp_path):
         "rsa.generate_private_key()\n"
     ))
     assert hallazgos == []
+
+
+# --- Curvas elípticas (ECDSA / ECDH) ---
+
+def test_detecta_generacion_de_clave_de_curva_eliptica(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "clave = ec.generate_private_key(ec.SECP256R1())\n"
+    ))
+
+    assert len(hallazgos) == 1
+    assert hallazgos[0].rule_id == "crypto.pqc.ec-keygen"
+    assert hallazgos[0].severity == Severity.MEDIUM
+    assert hallazgos[0].metadata["algorithm"] == "ECC"
+
+
+def test_detecta_firma_ecdsa(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives import hashes\n"
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "def firmar(clave, datos):\n"
+        "    return clave.sign(datos, ec.ECDSA(hashes.SHA256()))\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.ecdsa"]
+    assert hallazgos[0].line == 4
+
+
+def test_detecta_intercambio_ecdh(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "def acordar(clave, clave_del_otro):\n"
+        "    return clave.exchange(ec.ECDH(), clave_del_otro)\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.ecdh"]
+
+
+def test_nombrar_una_curva_sin_usarla_no_es_hallazgo(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "CURVA = ec.SECP256R1()\n"
+    ))
+    assert hallazgos == []

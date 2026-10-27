@@ -37,14 +37,35 @@ _SHOR_DESCRIPTION = (
     "de claves y a ML-DSA (FIPS 204) para firmas."
 )
 
+def _shor_rule(rule_id: str, algorithm: str, title: str) -> _Rule:
+    return _Rule(
+        rule_id=rule_id,
+        algorithm=algorithm,
+        title=title,
+        severity=Severity.MEDIUM,
+        description=_SHOR_DESCRIPTION.format(algorithm=algorithm),
+    )
+
+
+_ASYMMETRIC = "cryptography.hazmat.primitives.asymmetric"
+
 # Reglas por llamada: nombre completo de la función → regla que dispara.
 CALL_RULES = {
-    "cryptography.hazmat.primitives.asymmetric.rsa.generate_private_key": _Rule(
-        rule_id="crypto.pqc.rsa-keygen",
-        algorithm="RSA",
-        title="Generación de clave RSA vulnerable a computación cuántica",
-        severity=Severity.MEDIUM,
-        description=_SHOR_DESCRIPTION.format(algorithm="RSA"),
+    f"{_ASYMMETRIC}.rsa.generate_private_key": _shor_rule(
+        "crypto.pqc.rsa-keygen", "RSA",
+        "Generación de clave RSA vulnerable a computación cuántica",
+    ),
+    f"{_ASYMMETRIC}.ec.generate_private_key": _shor_rule(
+        "crypto.pqc.ec-keygen", "ECC",
+        "Generación de clave de curva elíptica vulnerable a computación cuántica",
+    ),
+    f"{_ASYMMETRIC}.ec.ECDSA": _shor_rule(
+        "crypto.pqc.ecdsa", "ECDSA",
+        "Firma ECDSA vulnerable a computación cuántica",
+    ),
+    f"{_ASYMMETRIC}.ec.ECDH": _shor_rule(
+        "crypto.pqc.ecdh", "ECDH",
+        "Intercambio de claves ECDH vulnerable a computación cuántica",
     ),
 }
 
