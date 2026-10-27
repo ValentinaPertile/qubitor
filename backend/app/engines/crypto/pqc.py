@@ -10,6 +10,7 @@ Módulo C) llama a `scan_pqc` y junta sus resultados con los de `classic.py`.
 """
 
 import ast
+import copy
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,9 @@ from app.engines.base import Finding, Severity
 
 # Carpetas que no son código del usuario: dependencias, entornos y builds.
 IGNORED_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build"}
+
+# Largo máximo del fragmento de código que se guarda en cada hallazgo.
+MAX_SNIPPET_CHARS = 200
 
 
 @dataclass(frozen=True)
@@ -180,7 +184,12 @@ def scan_pqc(repo_path: str) -> list[Finding]:
 
 
 def _iter_files(repo: Path, suffix: str) -> Iterator[Path]:
+    repo_root = repo.resolve()
     for path in repo.rglob(f"*{suffix}"):
+        # El repo no es de confianza: un enlace simbólico podría apuntar a un
+        # archivo del servidor y filtrar su contenido en el reporte.
+        if path.is_symlink() or not path.resolve().is_relative_to(repo_root):
+            continue
         if not path.is_file():
             continue
         if any(part in IGNORED_DIRS for part in path.relative_to(repo).parts):
@@ -278,8 +287,29 @@ def _make_finding(rule: _Rule, node: ast.Call, file_path: str) -> Finding:
         severity=rule.severity,
         file_path=file_path,
         line=node.lineno,
-        snippet=ast.unparse(node),
+        snippet=_snippet(node),
         description=rule.description,
         cwe="CWE-327",
         metadata={"algorithm": rule.algorithm},
     )
+
+
+class _MaskStrings(ast.NodeTransformer):
+    """Reemplaza cada texto o bytes del código por '***'.
+
+    Las claves suelen escribirse como texto (`AES.new(b'mi-clave')`), y el
+    snippet se guarda en la base y se envía a la IA: nunca debe incluirlas.
+    """
+
+    def visit_Constant(self, node: ast.Constant) -> ast.Constant:
+        if isinstance(node.value, (str, bytes)):
+            return ast.copy_location(ast.Constant(value="***"), node)
+        return node
+
+
+def _snippet(node: ast.Call) -> str:
+    masked = _MaskStrings().visit(copy.deepcopy(node))
+    text = ast.unparse(masked)
+    if len(text) > MAX_SNIPPET_CHARS:
+        text = text[:MAX_SNIPPET_CHARS] + "…"
+    return text

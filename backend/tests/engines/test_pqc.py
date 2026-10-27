@@ -318,3 +318,48 @@ def test_rsa_de_cryptography_no_se_confunde_con_la_libreria_rsa(tmp_path):
         "rsa.newkeys(2048)\n"
     ))
     assert hallazgos == []
+
+
+# --- Seguridad: el repo escaneado no es de confianza ---
+
+def test_no_sigue_enlaces_a_archivos_de_afuera_del_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    afuera = tmp_path / "privado.py"
+    afuera.write_text("import rsa\nrsa.newkeys(2048)\n")
+    (repo / "enlace.py").symlink_to(afuera)
+
+    assert scan_pqc(str(repo)) == []
+
+
+def test_no_sigue_carpetas_enlazadas_a_afuera_del_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    afuera = tmp_path / "afuera"
+    afuera.mkdir()
+    (afuera / "privado.py").write_text("import rsa\nrsa.newkeys(2048)\n")
+    (repo / "carpeta").symlink_to(afuera, target_is_directory=True)
+
+    assert scan_pqc(str(repo)) == []
+
+
+def test_el_snippet_no_muestra_claves_escritas_en_el_codigo(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from Crypto.Cipher import AES\n"
+        "cifrador = AES.new(b'clave-super-secreta', AES.MODE_GCM, nonce='otro-secreto')\n"
+    ))
+
+    snippet = hallazgos[0].snippet
+    assert "clave-super-secreta" not in snippet
+    assert "otro-secreto" not in snippet
+    assert snippet == "AES.new('***', AES.MODE_GCM, nonce='***')"
+
+
+def test_el_snippet_largo_se_recorta(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "import rsa\n"
+        "rsa.newkeys(" + " + ".join(["tamano"] * 100) + ")\n"
+    ))
+
+    assert len(hallazgos[0].snippet) <= 201
+    assert hallazgos[0].snippet.endswith("…")
