@@ -67,6 +67,14 @@ CALL_RULES = {
         "crypto.pqc.ecdh", "ECDH",
         "Intercambio de claves ECDH vulnerable a computación cuántica",
     ),
+    f"{_ASYMMETRIC}.dh.generate_parameters": _shor_rule(
+        "crypto.pqc.dh", "DH",
+        "Intercambio de claves Diffie-Hellman vulnerable a computación cuántica",
+    ),
+    f"{_ASYMMETRIC}.dh.DHParameterNumbers": _shor_rule(
+        "crypto.pqc.dh", "DH",
+        "Intercambio de claves Diffie-Hellman vulnerable a computación cuántica",
+    ),
 }
 
 

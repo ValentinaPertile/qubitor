@@ -125,3 +125,25 @@ def test_nombrar_una_curva_sin_usarla_no_es_hallazgo(tmp_path):
         "CURVA = ec.SECP256R1()\n"
     ))
     assert hallazgos == []
+
+
+# --- Diffie-Hellman ---
+
+def test_detecta_diffie_hellman_una_sola_vez(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import dh\n"
+        "parametros = dh.generate_parameters(generator=2, key_size=2048)\n"
+        "clave = parametros.generate_private_key()\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.dh"]
+    assert hallazgos[0].line == 2
+    assert hallazgos[0].metadata["algorithm"] == "DH"
+
+
+def test_detecta_diffie_hellman_con_parametros_manuales(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import dh\n"
+        "numeros = dh.DHParameterNumbers(p=23, g=5)\n"
+    ))
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.dh"]
