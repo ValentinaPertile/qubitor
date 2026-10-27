@@ -256,3 +256,65 @@ def test_md5_y_sha1_no_son_de_este_modulo(tmp_path):
         "b = hashlib.sha1(b'x')\n"
     ))
     assert hallazgos == []
+
+
+# --- Otras librerías: pycryptodome, rsa y ecdsa (y DSA) ---
+
+def test_detecta_dsa_de_cryptography(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import dsa\n"
+        "clave = dsa.generate_private_key(key_size=2048)\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.dsa-keygen"]
+    assert hallazgos[0].severity == Severity.MEDIUM
+
+
+def test_pycryptodome_rsa_ecc_y_dsa(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from Crypto.PublicKey import RSA, ECC, DSA\n"
+        "a = RSA.generate(2048)\n"
+        "b = ECC.generate(curve='P-256')\n"
+        "c = DSA.generate(2048)\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == [
+        "crypto.pqc.rsa-keygen",
+        "crypto.pqc.ec-keygen",
+        "crypto.pqc.dsa-keygen",
+    ]
+
+
+def test_pycryptodome_aes_va_al_inventario(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from Crypto.Cipher import AES\n"
+        "cifrador = AES.new(clave, AES.MODE_GCM)\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.inventory.aes"]
+
+
+def test_libreria_rsa(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "import rsa\n"
+        "publica, privada = rsa.newkeys(2048)\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.rsa-keygen"]
+
+
+def test_libreria_ecdsa(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from ecdsa import SigningKey, NIST256p\n"
+        "clave = SigningKey.generate(curve=NIST256p)\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.ecdsa"]
+
+
+def test_rsa_de_cryptography_no_se_confunde_con_la_libreria_rsa(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.asymmetric import rsa\n"
+        "rsa.newkeys(2048)\n"
+    ))
+    assert hallazgos == []

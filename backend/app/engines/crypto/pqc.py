@@ -94,36 +94,55 @@ def _aes_by_key_size(node: ast.Call) -> _Rule:
     return _aes_inventory(f"AES-{bits}")
 
 
+_RSA_KEYGEN = _shor_rule(
+    "crypto.pqc.rsa-keygen", "RSA",
+    "Generación de clave RSA vulnerable a computación cuántica",
+)
+_EC_KEYGEN = _shor_rule(
+    "crypto.pqc.ec-keygen", "ECC",
+    "Generación de clave de curva elíptica vulnerable a computación cuántica",
+)
+_ECDSA = _shor_rule(
+    "crypto.pqc.ecdsa", "ECDSA",
+    "Firma ECDSA vulnerable a computación cuántica",
+)
+_ECDH = _shor_rule(
+    "crypto.pqc.ecdh", "ECDH",
+    "Intercambio de claves ECDH vulnerable a computación cuántica",
+)
+_DH = _shor_rule(
+    "crypto.pqc.dh", "DH",
+    "Intercambio de claves Diffie-Hellman vulnerable a computación cuántica",
+)
+_DSA_KEYGEN = _shor_rule(
+    "crypto.pqc.dsa-keygen", "DSA",
+    "Generación de clave DSA vulnerable a computación cuántica",
+)
+
 _ASYMMETRIC = "cryptography.hazmat.primitives.asymmetric"
 _CIPHERS = "cryptography.hazmat.primitives.ciphers"
 
 # Reglas por llamada: nombre completo de la función → regla que dispara, o una
 # función que mira los argumentos de la llamada y elige la regla.
 CALL_RULES: dict[str, _Rule | Callable[[ast.Call], _Rule]] = {
-    f"{_ASYMMETRIC}.rsa.generate_private_key": _shor_rule(
-        "crypto.pqc.rsa-keygen", "RSA",
-        "Generación de clave RSA vulnerable a computación cuántica",
-    ),
-    f"{_ASYMMETRIC}.ec.generate_private_key": _shor_rule(
-        "crypto.pqc.ec-keygen", "ECC",
-        "Generación de clave de curva elíptica vulnerable a computación cuántica",
-    ),
-    f"{_ASYMMETRIC}.ec.ECDSA": _shor_rule(
-        "crypto.pqc.ecdsa", "ECDSA",
-        "Firma ECDSA vulnerable a computación cuántica",
-    ),
-    f"{_ASYMMETRIC}.ec.ECDH": _shor_rule(
-        "crypto.pqc.ecdh", "ECDH",
-        "Intercambio de claves ECDH vulnerable a computación cuántica",
-    ),
-    f"{_ASYMMETRIC}.dh.generate_parameters": _shor_rule(
-        "crypto.pqc.dh", "DH",
-        "Intercambio de claves Diffie-Hellman vulnerable a computación cuántica",
-    ),
-    f"{_ASYMMETRIC}.dh.DHParameterNumbers": _shor_rule(
-        "crypto.pqc.dh", "DH",
-        "Intercambio de claves Diffie-Hellman vulnerable a computación cuántica",
-    ),
+    # cryptography
+    f"{_ASYMMETRIC}.rsa.generate_private_key": _RSA_KEYGEN,
+    f"{_ASYMMETRIC}.ec.generate_private_key": _EC_KEYGEN,
+    f"{_ASYMMETRIC}.ec.ECDSA": _ECDSA,
+    f"{_ASYMMETRIC}.ec.ECDH": _ECDH,
+    f"{_ASYMMETRIC}.dh.generate_parameters": _DH,
+    f"{_ASYMMETRIC}.dh.DHParameterNumbers": _DH,
+    f"{_ASYMMETRIC}.dsa.generate_private_key": _DSA_KEYGEN,
+    # pycryptodome (se importa como `Crypto`)
+    "Crypto.PublicKey.RSA.generate": _RSA_KEYGEN,
+    "Crypto.PublicKey.ECC.generate": _EC_KEYGEN,
+    "Crypto.PublicKey.DSA.generate": _DSA_KEYGEN,
+    "Crypto.Cipher.AES.new": _aes_inventory("AES"),
+    # rsa (python-rsa)
+    "rsa.newkeys": _RSA_KEYGEN,
+    # ecdsa
+    "ecdsa.SigningKey.generate": _ECDSA,
+    # cryptography: cifrado simétrico e inventario
     f"{_CIPHERS}.algorithms.AES128": _AES_128,
     f"{_CIPHERS}.algorithms.AES256": _aes_inventory("AES-256"),
     f"{_CIPHERS}.algorithms.AES": _aes_inventory("AES"),
