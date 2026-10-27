@@ -60,18 +60,28 @@ _AES_128 = _Rule(
 )
 
 
-def _aes_inventory(algorithm: str) -> _Rule:
-    """Uso de AES sin riesgo post-cuántico conocido: solo va al inventario (CBOM)."""
+_INVENTORY_DESCRIPTION = (
+    "Uso de {algorithm} registrado en el inventario criptográfico (CBOM). "
+    "No tiene un riesgo post-cuántico conocido."
+)
+
+
+def _inventory_rule(kind: str, algorithm: str, description: str = _INVENTORY_DESCRIPTION) -> _Rule:
+    """Uso de criptografía sin riesgo post-cuántico conocido: solo va al inventario (CBOM)."""
     return _Rule(
-        rule_id="crypto.pqc.inventory.aes",
+        rule_id=f"crypto.pqc.inventory.{kind}",
         algorithm=algorithm,
         title=f"Uso de {algorithm} (inventario criptográfico)",
         severity=Severity.INFO,
-        description=(
-            f"Uso de {algorithm} registrado en el inventario criptográfico (CBOM). "
-            "Si el tamaño de clave no se pudo determinar, verificar que sea de 256 bits."
-        ),
+        description=description.format(algorithm=algorithm),
     )
+
+
+def _aes_inventory(algorithm: str) -> _Rule:
+    return _inventory_rule("aes", algorithm, (
+        "Uso de {algorithm} registrado en el inventario criptográfico (CBOM). "
+        "Si el tamaño de clave no se pudo determinar, verificar que sea de 256 bits."
+    ))
 
 
 def _aes_by_key_size(node: ast.Call) -> _Rule:
@@ -118,7 +128,25 @@ CALL_RULES: dict[str, _Rule | Callable[[ast.Call], _Rule]] = {
     f"{_CIPHERS}.algorithms.AES256": _aes_inventory("AES-256"),
     f"{_CIPHERS}.algorithms.AES": _aes_inventory("AES"),
     f"{_CIPHERS}.aead.AESGCM.generate_key": _aes_by_key_size,
+    f"{_CIPHERS}.aead.ChaCha20Poly1305": _inventory_rule("chacha20", "ChaCha20-Poly1305"),
+    "argon2.PasswordHasher": _inventory_rule("password-hash", "Argon2"),
+    "cryptography.hazmat.primitives.kdf.argon2.Argon2id": _inventory_rule("password-hash", "Argon2"),
 }
+
+# Hashes seguros: (nombre en `cryptography`, nombre en `hashlib`, nombre para el reporte).
+# MD5 y SHA-1 no van acá: están rotos hoy y los reporta classic.py (Módulo C).
+_SAFE_HASHES = [
+    ("SHA256", "sha256", "SHA-256"),
+    ("SHA384", "sha384", "SHA-384"),
+    ("SHA512", "sha512", "SHA-512"),
+    ("SHA3_256", "sha3_256", "SHA3-256"),
+    ("SHA3_384", "sha3_384", "SHA3-384"),
+    ("SHA3_512", "sha3_512", "SHA3-512"),
+    ("BLAKE2b", "blake2b", "BLAKE2b"),
+]
+for _crypto_name, _hashlib_name, _algorithm in _SAFE_HASHES:
+    CALL_RULES[f"cryptography.hazmat.primitives.hashes.{_crypto_name}"] = _inventory_rule("hash", _algorithm)
+    CALL_RULES[f"hashlib.{_hashlib_name}"] = _inventory_rule("hash", _algorithm)
 
 
 def scan_pqc(repo_path: str) -> list[Finding]:

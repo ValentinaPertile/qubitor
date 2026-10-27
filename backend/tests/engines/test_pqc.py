@@ -105,7 +105,8 @@ def test_detecta_firma_ecdsa(tmp_path):
         "    return clave.sign(datos, ec.ECDSA(hashes.SHA256()))\n"
     ))
 
-    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.ecdsa"]
+    # El SHA-256 de la firma también aparece, como inventario.
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.ecdsa", "crypto.pqc.inventory.hash"]
     assert hallazgos[0].line == 4
 
 
@@ -199,3 +200,59 @@ def test_aes_generico_va_al_inventario(tmp_path):
 
     assert [h.rule_id for h in hallazgos] == ["crypto.pqc.inventory.aes"]
     assert hallazgos[0].metadata["algorithm"] == "AES"
+
+
+# --- Inventario: hashes, Argon2 y ChaCha20 ---
+
+def test_hashlib_sha256_va_al_inventario(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "import hashlib\n"
+        "huella = hashlib.sha256(b'datos').hexdigest()\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.inventory.hash"]
+    assert hallazgos[0].severity == Severity.INFO
+    assert hallazgos[0].metadata["algorithm"] == "SHA-256"
+
+
+def test_sha3_importado_directamente(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from hashlib import sha3_256\n"
+        "huella = sha3_256(b'datos')\n"
+    ))
+    assert hallazgos[0].metadata["algorithm"] == "SHA3-256"
+
+
+def test_sha512_de_cryptography(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives import hashes\n"
+        "algoritmo = hashes.SHA512()\n"
+    ))
+    assert hallazgos[0].metadata["algorithm"] == "SHA-512"
+
+
+def test_argon2_va_al_inventario(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from argon2 import PasswordHasher\n"
+        "hasher = PasswordHasher()\n"
+    ))
+
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.inventory.password-hash"]
+    assert hallazgos[0].metadata["algorithm"] == "Argon2"
+
+
+def test_chacha20_va_al_inventario(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305\n"
+        "cifrador = ChaCha20Poly1305(clave)\n"
+    ))
+    assert [h.rule_id for h in hallazgos] == ["crypto.pqc.inventory.chacha20"]
+
+
+def test_md5_y_sha1_no_son_de_este_modulo(tmp_path):
+    hallazgos = _escanear(tmp_path, (
+        "import hashlib\n"
+        "a = hashlib.md5(b'x')\n"
+        "b = hashlib.sha1(b'x')\n"
+    ))
+    assert hallazgos == []
