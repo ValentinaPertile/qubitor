@@ -120,6 +120,15 @@ Copiar el bloque de abajo, completar los campos y agregarlo al final de este arc
 - **Responsable:** Valentina Pértile de la Vega
 - **PR:** _pendiente_
 
+### [2026-11-06] API base, cola de escaneos y scan-worker
+
+- **Problema abordado:** Separar la API del escaneo: la API publica un trabajo y responde al instante, y un scan-worker independiente lo ejecuta, con reintentos y cola de errores (componente cloud del Módulo A). Además, dejar la imagen Docker del scan-worker en condiciones de conectarse a Upstash.
+- **Prompt / Herramienta utilizada:** Claude Code (Claude Opus 5.5), de a un paso por commit: app FastAPI y configuración, cola con RQ, clonado, job de escaneo y corrección del Dockerfile (a partir de la rama de Alvaro).
+- **Código / Arquitectura generada:** `app/main.py` (`/health`, CORS), `app/config.py`, `app/worker/queue.py` (`enqueue_scan`, 2 reintentos, 7 días en la cola de errores), `clone.py` (solo URLs públicas de GitHub, sin symlinks, corte a los 50 MB o 120 s), `job.py` (`run_scan`), `store.py` (interfaz `ScanStore`, con `LogScanStore` hasta que estén los modelos) y `run.py` (punto de entrada). `requirements.txt`, `requirements-dev.txt`, `.env.example` y `.dockerignore`. 36 casos de test nuevos.
+- **Validación y Corrección Humana:** Probado de punta a punta con un worker real contra Upstash: el escaneo del propio repo terminó completo, y un repo inexistente y una URL de GitLab fallaron sin reintentos. Decisiones: reintentos sin intervalo, porque el scheduler de RQ consulta Redis todo el tiempo y gasta la cuota; JSON en lugar de pickle; un repo rechazado no se reintenta y una falla transitoria sí, marcando el escaneo como fallido recién en el último intento. Riesgo aceptado: RQ importa la función indicada en cada trabajo, así que quien tenga la URL de Redis podría ejecutar código en el worker; `REDIS_URL` debe tratarse como un secreto crítico. Limitaciones: la imagen Docker no se construyó (Docker no estaba disponible), Linux con fork no se probó (se usó `SimpleWorker` en Windows), todavía no hay endpoints de escaneo ni persistencia real, y `CryptoEngine` se suma cuando se mergee la PR #16.
+- **Responsable:** Juan Ignacio Wilt
+- **PR:** feat(worker): API base, cola de escaneos y scan-worker
+
 ### [PLANTILLA — completar en próximas entradas]
 
 - **Problema abordado:**
