@@ -2,7 +2,7 @@ import { ExternalLink, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ENGINE_LABEL } from '@/lib/labels'
 import { cn } from '@/lib/cn'
-import { effectiveSeverity } from '@/lib/risk'
+import { effectiveSeverity, isInformational } from '@/lib/risk'
 import type { FindingRecord } from '@/types/Finding'
 import { CodeSnippet } from './CodeSnippet'
 import { SeverityBadge } from './SeverityBadge'
@@ -31,7 +31,7 @@ export function FindingCard({ finding, actions, hideHeader = false, className }:
             <h3 className="text-base font-semibold text-ink">{finding.title}</h3>
             <p className="font-mono text-xs text-ink-3">{finding.rule_id}</p>
           </div>
-          <StatusStamp status={finding.status} />
+          {!isInformational(finding) && <StatusStamp status={finding.status} />}
         </header>
       )}
 

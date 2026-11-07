@@ -24,9 +24,17 @@ export function effectiveSeverity(finding: FindingRecord): Severity {
   return finding.triage?.adjusted_severity ?? finding.severity
 }
 
-/** Solo penalizan los hallazgos abiertos y que no son falsos positivos. */
+/**
+ * Los hallazgos info son inventario o buenas prácticas sin riesgo (ej. CBOM):
+ * no son vulnerabilidades, así que no tienen estado que gestionar ni penalizan.
+ */
+export function isInformational(finding: FindingRecord): boolean {
+  return effectiveSeverity(finding) === 'info'
+}
+
+/** Solo penalizan los hallazgos abiertos, que no son falsos positivos ni info. */
 export function countsTowardScore(finding: FindingRecord): boolean {
-  return finding.status === 'open' && !finding.triage?.is_false_positive
+  return finding.status === 'open' && !finding.triage?.is_false_positive && !isInformational(finding)
 }
 
 export function penaltyOf(findings: readonly FindingRecord[]): number {

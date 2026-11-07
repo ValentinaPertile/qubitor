@@ -10,7 +10,7 @@
   "scan": {
     "id": "scan_0007",
     "repository_id": "repo_demo",
-    "status": "done",
+    "status": "completed",
     "engines": ["sast", "sca", "secrets", "crypto"],
     "progress": 100,
     "stage": "persist",

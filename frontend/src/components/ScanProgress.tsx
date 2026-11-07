@@ -13,14 +13,14 @@ interface ScanProgressProps {
 
 /** Barra de progreso del escaneo con las etapas del pipeline. */
 export function ScanProgress({ scan, error, className }: ScanProgressProps) {
-  const queued = scan === null || scan.status === 'pending'
+  const queued = scan === null || scan.status === 'queued'
   const failed = scan?.status === 'failed'
-  const progress = scan?.status === 'done' ? 100 : Math.round(scan?.progress ?? 0)
+  const progress = scan?.status === 'completed' ? 100 : Math.round(scan?.progress ?? 0)
   const currentIndex = scan?.stage ? SCAN_STAGES.indexOf(scan.stage) : -1
 
   const headline = failed
     ? 'El escaneo falló'
-    : scan?.status === 'done'
+    : scan?.status === 'completed'
       ? 'Escaneo terminado'
       : queued
         ? 'En cola, esperando un worker libre…'
@@ -60,7 +60,7 @@ export function ScanProgress({ scan, error, className }: ScanProgressProps) {
 
       <ol className="mt-3.5 grid grid-cols-3 gap-x-3 gap-y-1.5 sm:grid-cols-6">
         {SCAN_STAGES.map((stage, index) => {
-          const done = scan?.status === 'done' || index < currentIndex
+          const done = scan?.status === 'completed' || index < currentIndex
           const active = !done && index === currentIndex && scan?.status === 'running'
           return (
             <li

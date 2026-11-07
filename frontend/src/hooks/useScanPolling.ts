@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/api'
-import type { Scan } from '@/types/Scan'
+import type { Scan, ScanStatus } from '@/types/Scan'
 
 interface ScanPollingOptions {
   /** Cómo se lee el escaneo; por defecto GET /scans/{id}. Los mocks pasan el suyo. */
   fetchScan?: (scanId: string) => Promise<Scan>
   intervalMs?: number
-  /** Se llama una vez cuando el escaneo termina (done o failed). */
+  /** Se llama una vez cuando el escaneo termina (completed o failed). */
   onFinish?: (scan: Scan) => void
 }
 
-const FINISHED: ReadonlySet<Scan['status']> = new Set(['done', 'failed'])
+/** Mientras el escaneo esté en uno de estos estados, se sigue consultando. */
+const ACTIVE: ReadonlySet<ScanStatus> = new Set<ScanStatus>(['queued', 'running'])
 
 /**
- * Consulta /scans/{id} cada `intervalMs` hasta que el escaneo termina.
+ * Consulta /scans/{id} cada `intervalMs` mientras el estado sea queued o running.
+ * Se detiene en completed (resultados listos) o failed (error), y también ante
+ * un estado desconocido para no quedar consultando para siempre.
  * Con scanId null no hace nada.
  */
 export function useScanPolling(scanId: string | null, options: ScanPollingOptions = {}) {
@@ -38,7 +41,7 @@ export function useScanPolling(scanId: string | null, options: ScanPollingOption
         if (cancelled) return
         setScan(next)
         setError(null)
-        if (FINISHED.has(next.status)) {
+        if (!ACTIVE.has(next.status)) {
           onFinish.current?.(next)
           return
         }

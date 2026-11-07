@@ -26,7 +26,7 @@ const apiSource: DashboardSource = {
     const [repository] = await api.listRepositories()
     if (!repository) return null
     const history = await api.repositoryHistory(repository.id)
-    const scan = history.find((s) => s.status === 'done') ?? null
+    const scan = history.find((s) => s.status === 'completed') ?? null
     const findings = scan ? await api.getScanFindings(scan.id) : []
     return { repository, scan, findings }
   },
@@ -56,7 +56,7 @@ function simulatedScan(id: string, startedAt: number): Scan {
   const base: Scan = {
     ...mockState.scan,
     id,
-    status: 'pending',
+    status: 'queued',
     progress: null,
     stage: null,
     started_at: new Date(startedAt).toISOString(),
@@ -75,7 +75,7 @@ function simulatedScan(id: string, startedAt: number): Scan {
   const score = riskScore(mockState.findings)
   return {
     ...base,
-    status: 'done',
+    status: 'completed',
     progress: 100,
     stage: 'persist',
     finished_at: new Date(startedAt + MOCK_QUEUE_MS + MOCK_SCAN_MS).toISOString(),
@@ -106,7 +106,7 @@ const mockSource: DashboardSource = {
       throw new Error('El escaneo no existe.')
     }
     const scan = simulatedScan(scanId, mockState.running.startedAt)
-    if (scan.status === 'done') {
+    if (scan.status === 'completed') {
       mockState.scan = scan
       mockState.findings = mockState.findings.map((f) => ({ ...f, scan_id: scan.id }))
       mockState.running = null

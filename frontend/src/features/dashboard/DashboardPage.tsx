@@ -50,11 +50,13 @@ export default function DashboardPage() {
 
   const handleScanFinished = useCallback(
     async (scan: Scan) => {
-      if (scan.status === 'failed') {
-        toast({ message: scan.error ?? 'El escaneo falló. Intentá de nuevo.', tone: 'error' })
-      } else {
+      if (scan.status === 'completed') {
         await load()
         toast({ message: `Escaneo terminado. Nota ${scan.grade ?? '—'}, Risk Score ${formatNumber(scan.risk_score ?? 0)}.` })
+      } else if (scan.status === 'failed') {
+        toast({ message: scan.error ?? 'El escaneo falló. Intentá de nuevo.', tone: 'error' })
+      } else {
+        toast({ message: `El escaneo terminó con un estado inesperado (${String(scan.status)}).`, tone: 'error' })
       }
       window.setTimeout(() => setScanId(null), PROGRESS_LINGER_MS)
     },

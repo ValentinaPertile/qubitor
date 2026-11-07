@@ -1,5 +1,5 @@
 import { MODULE_VIEWS, viewOf, type ModuleView } from '@/lib/labels'
-import { countsTowardScore, effectiveSeverity, gradeFor, penaltyOf, riskScore } from '@/lib/risk'
+import { countsTowardScore, effectiveSeverity, gradeFor, isInformational, penaltyOf, riskScore } from '@/lib/risk'
 import { ENGINES, SEVERITIES, type EngineName, type FindingRecord, type Severity } from '@/types/Finding'
 import type { Grade } from '@/types/Scan'
 
@@ -7,7 +7,7 @@ export interface DashboardStats {
   score: number
   grade: Grade
   penalty: number
-  /** Hallazgos que penalizan (abiertos y no falsos positivos). */
+  /** Hallazgos que penalizan (abiertos, no falsos positivos y no info). */
   counted: number
   bySeverity: Record<Severity, number>
   byEngine: Record<EngineName, Record<Severity, number>>
@@ -28,6 +28,15 @@ export function computeStats(findings: readonly FindingRecord[]): DashboardStats
 
   let counted = 0
   for (const finding of findings) {
+    // Los info se muestran como inventario (peso 0) pero no cuentan como
+    // abiertos ni penalizan. Su estado no aplica, así que no se mira.
+    if (isInformational(finding)) {
+      if (!finding.triage?.is_false_positive) {
+        bySeverity.info += 1
+        byEngine[finding.engine].info += 1
+      }
+      continue
+    }
     if (!countsTowardScore(finding)) continue
     const severity = effectiveSeverity(finding)
     counted += 1

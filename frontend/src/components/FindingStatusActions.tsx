@@ -1,6 +1,7 @@
 import { Ban, Check, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
+import { isInformational } from '@/lib/risk'
 import type { FindingRecord, FindingStatus } from '@/types/Finding'
 
 interface FindingStatusActionsProps {
@@ -10,8 +11,12 @@ interface FindingStatusActionsProps {
   pending?: boolean
 }
 
-/** Botones para marcar un hallazgo como resuelto o falso positivo, o reabrirlo. */
+/**
+ * Botones para marcar un hallazgo como resuelto o falso positivo, o reabrirlo.
+ * Los hallazgos info no son fallas reales: no tienen estado que gestionar.
+ */
 export function FindingStatusActions({ finding, onChange, pending = false }: FindingStatusActionsProps) {
+  if (isInformational(finding)) return null
   if (finding.status !== 'open') {
     return (
       <ActionButton icon={<RotateCcw />} onClick={() => onChange('open')} disabled={pending}>

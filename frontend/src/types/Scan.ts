@@ -7,7 +7,8 @@ import type { EngineName } from './Finding'
 
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'F'
 
-export type ScanStatus = 'pending' | 'running' | 'done' | 'failed'
+/** Igual al enum ScanStatus del backend: queued → running → completed | failed. */
+export type ScanStatus = 'queued' | 'running' | 'completed' | 'failed'
 
 /** Etapas del pipeline del auditor (sección 2 del plan). */
 export type ScanStage = 'clone' | 'engines' | 'normalize' | 'triage' | 'score' | 'persist'
