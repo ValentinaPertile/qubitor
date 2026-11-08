@@ -1,5 +1,5 @@
 import type { FindingRecord, FindingStatus } from '@/types/Finding'
-import type { Repository, Scan } from '@/types/Scan'
+import type { Repository, Scan, ScanReport } from '@/types/Scan'
 import { API_URL } from './config'
 
 /**
@@ -78,6 +78,9 @@ export const api = {
 
   getScanFindings: (scanId: string) =>
     request<FindingRecord[]>(`/scans/${encodeURIComponent(scanId)}/findings`),
+
+  /** URLs firmadas que vencen: pedirlas justo antes de descargar. */
+  getScanReport: (scanId: string) => request<ScanReport>(`/scans/${encodeURIComponent(scanId)}/report`),
 
   updateFinding: (findingId: string, status: FindingStatus) =>
     request<FindingRecord>(`/findings/${encodeURIComponent(findingId)}`, {

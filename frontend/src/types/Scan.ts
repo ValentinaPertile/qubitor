@@ -47,3 +47,13 @@ export interface Scan {
   grade: Grade | null
   error: string | null
 }
+
+/** GET /scans/{id}/report: URLs firmadas de R2 para descargar los archivos del escaneo. */
+export interface ScanReport {
+  /** Reporte completo en JSON; null si el escaneo no lo tiene guardado. */
+  report_url: string | null
+  /** Inventario criptográfico en CycloneDX 1.6; null si no está guardado. */
+  cbom_url: string | null
+  /** Segundos que duran las URLs. */
+  expires_in: number
+}

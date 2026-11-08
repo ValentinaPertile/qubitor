@@ -65,7 +65,13 @@ const SHOR_RULES: Record<string, { algorithm: string; use: AsymmetricUse }> = {
   'crypto.pqc.dh': { algorithm: 'DH', use: 'exchange' },
   'crypto.pqc.dsa-keygen': { algorithm: 'DSA', use: 'signature' },
   'crypto.classic.rsa-weak-key': { algorithm: 'RSA < 2048', use: 'both' },
+  // Certificados y claves versionados (certs.py): un certificado sirve para firmar.
+  'crypto.pqc.cert-quantum-vulnerable': { algorithm: 'Certificado', use: 'signature' },
+  'crypto.pqc.cert-weak-key': { algorithm: 'RSA < 2048', use: 'both' },
 }
+
+/** RSA de menos de 2048 bits, en el código (classic.py) o en un certificado (certs.py). */
+const WEAK_RSA_RULES = new Set(['crypto.classic.rsa-weak-key', 'crypto.pqc.cert-weak-key'])
 
 const BROKEN_ALGORITHMS: Record<string, string> = {
   'crypto.classic.weak-hash': 'MD5 / SHA-1',
@@ -109,7 +115,7 @@ export function exposure(usages: readonly CryptoUsage[]): ExposureSummary {
 export function migrationRoadmap(usages: readonly CryptoUsage[]): MigrationStep[] {
   const active = usages.filter((u) => u.active)
   const withUse = (use: AsymmetricUse) =>
-    active.filter((u) => u.finding.rule_id !== 'crypto.classic.rsa-weak-key' && SHOR_RULES[u.finding.rule_id]?.use === use)
+    active.filter((u) => !WEAK_RSA_RULES.has(u.finding.rule_id) && SHOR_RULES[u.finding.rule_id]?.use === use)
 
   const steps: MigrationStep[] = [
     {
@@ -118,7 +124,7 @@ export function migrationRoadmap(usages: readonly CryptoUsage[]): MigrationStep[
       target: 'RSA de 3072 bits ya, y después ML-KEM o ML-DSA',
       why: 'Se pueden factorizar hoy con recursos clásicos, sin esperar a una computadora cuántica.',
       priority: 'high',
-      usages: active.filter((u) => u.finding.rule_id === 'crypto.classic.rsa-weak-key'),
+      usages: active.filter((u) => WEAK_RSA_RULES.has(u.finding.rule_id)),
     },
     {
       id: 'exchange',
@@ -164,6 +170,7 @@ function toUsage(finding: FindingRecord): CryptoUsage {
 }
 
 function classify(finding: FindingRecord): { algorithm: string; threat: Threat } {
+  if (finding.rule_id.startsWith('crypto.pqc.cert-')) return classifyCert(finding)
   const shor = SHOR_RULES[finding.rule_id]
   if (shor) return { algorithm: shor.algorithm, threat: 'shor' }
   if (finding.rule_id === 'crypto.pqc.aes-128') return { algorithm: 'AES-128', threat: 'grover' }
@@ -173,4 +180,27 @@ function classify(finding: FindingRecord): { algorithm: string; threat: Threat }
   }
   const algorithm = finding.metadata.algorithm
   return { algorithm: typeof algorithm === 'string' ? algorithm : finding.title, threat: 'none' }
+}
+
+const CERT_NOUN: Record<string, string> = {
+  certificate: 'Certificado',
+  private_key: 'Clave privada',
+  public_key: 'Clave pública',
+}
+
+/** Certificados y claves: el nombre dice qué es y con qué algoritmo, p. ej. «Certificado RSA-1024». */
+function classifyCert(finding: FindingRecord): { algorithm: string; threat: Threat } {
+  const { kind, algorithm, key_size: bits, signature_hash: hash } = finding.metadata
+  const noun = (typeof kind === 'string' && CERT_NOUN[kind]) || 'Certificado'
+  const key = typeof algorithm === 'string' ? algorithm : ''
+  const size = typeof bits === 'number' && (key === 'RSA' || key === 'DSA') ? `-${bits}` : ''
+  const label = `${noun} ${key}${size}`.trim()
+
+  if (finding.rule_id === 'crypto.pqc.cert-weak-signature') {
+    const name = typeof hash === 'string' ? hash.toUpperCase().replace('SHA1', 'SHA-1') : 'débil'
+    return { algorithm: `${label} con firma ${name}`, threat: 'broken' }
+  }
+  if (finding.rule_id === 'crypto.pqc.cert-expired') return { algorithm: `${label} vencido`, threat: 'broken' }
+  if (finding.rule_id === 'crypto.pqc.cert-expiring') return { algorithm: `${label} por vencer`, threat: 'none' }
+  return { algorithm: label, threat: SHOR_RULES[finding.rule_id] ? 'shor' : 'none' }
 }

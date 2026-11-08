@@ -10,6 +10,7 @@ import { CbomTable } from './CbomTable'
 import { loadPqc, type PqcData } from './dataSource'
 import { ExposureCard } from './ExposureCard'
 import { MigrationRoadmap } from './MigrationRoadmap'
+import { ReportDownloadButton } from './ReportDownloadButton'
 import { cryptoUsages, exposure, migrationRoadmap } from './quantum'
 
 type LoadState =
@@ -110,6 +111,7 @@ function PqcView({ data }: { data: PqcData }) {
             )}
           </span>
         }
+        actions={scan && <ReportDownloadButton scanId={scan.id} kind="cbom" label="Descargar CBOM (CycloneDX)" />}
       />
 
       <div className="space-y-5 px-4 pb-12 sm:px-8">

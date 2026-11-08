@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/Loader'
 import { useToast } from '@/components/toast/toastContext'
 import { USE_MOCKS } from '@/lib/config'
 import { formatDateTime, pluralize } from '@/lib/format'
+import { ReportDownloadButton } from '@/features/pqc/ReportDownloadButton'
 import { loadDependencies, type DependenciesData } from './dataSource'
 import { PackageTable } from './PackageTable'
 import { combinedCommands, groupByPackage } from './packages'
@@ -122,16 +123,19 @@ function DependenciesView({ data, onCopy }: { data: DependenciesData; onCopy: (c
           </span>
         }
         actions={
-          commands.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onCopy(commands.join('\n'))}
-              className="inline-flex h-10 items-center gap-2 rounded-sm bg-civic px-4 text-sm font-semibold text-civic-ink shadow-sheet transition-[background-color,scale] duration-150 hover:bg-civic-deep active:scale-[0.96]"
-            >
-              <Copy className="size-4" strokeWidth={2} aria-hidden="true" />
-              Copiar todos los comandos
-            </button>
-          )
+          <>
+            {scan && <ReportDownloadButton scanId={scan.id} kind="report" label="Descargar reporte" />}
+            {commands.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onCopy(commands.join('\n'))}
+                className="inline-flex h-10 items-center gap-2 rounded-sm bg-civic px-4 text-sm font-semibold text-civic-ink shadow-sheet transition-[background-color,scale] duration-150 hover:bg-civic-deep active:scale-[0.96]"
+              >
+                <Copy className="size-4" strokeWidth={2} aria-hidden="true" />
+                Copiar todos los comandos
+              </button>
+            )}
+          </>
         }
       />
 
