@@ -17,6 +17,10 @@ down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+# Organización del request. NULLIF evita el error de castear '' a uuid cuando
+# el setting quedó vacío en una conexión reutilizada del pool.
+CURRENT_ORG = "NULLIF(current_setting('app.current_org_id', true), '')::uuid"
+
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -90,27 +94,48 @@ def upgrade() -> None:
     op.create_index('ix_findings_fingerprint', 'findings', ['fingerprint'], unique=False)
     op.create_index('ix_findings_scan_id', 'findings', ['scan_id'], unique=False)
     
-    # Activar RLS en las 5 tablas
-    op.execute("ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;")
-    op.execute("ALTER TABLE users ENABLE ROW LEVEL SECURITY;")
-    op.execute("ALTER TABLE repositories ENABLE ROW LEVEL SECURITY;")
-    op.execute("ALTER TABLE scans ENABLE ROW LEVEL SECURITY;")
-    op.execute("ALTER TABLE findings ENABLE ROW LEVEL SECURITY;")
+    # RLS en todas las tablas de public, incluida alembic_version, que Supabase
+    # también expone por la Data API.
+    for table in ("organizations", "users", "repositories", "scans", "findings", "alembic_version"):
+        op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
 
-    # Crear política genérica que filtra por el org_id inyectado en la transacción
+    op.execute(
+        f"CREATE POLICY org_isolation_organizations ON organizations FOR ALL "
+        f"USING (id = {CURRENT_ORG}) WITH CHECK (id = {CURRENT_ORG})"
+    )
+    op.execute(
+        f"CREATE POLICY org_isolation_users ON users FOR ALL "
+        f"USING (organization_id = {CURRENT_ORG}) WITH CHECK (organization_id = {CURRENT_ORG})"
+    )
+    op.execute(
+        f"CREATE POLICY org_isolation_repositories ON repositories FOR ALL "
+        f"USING (organization_id = {CURRENT_ORG}) WITH CHECK (organization_id = {CURRENT_ORG})"
+    )
+    scan_of_org = (
+        "EXISTS (SELECT 1 FROM repositories r "
+        f"WHERE r.id = scans.repository_id AND r.organization_id = {CURRENT_ORG})"
+    )
+    op.execute(f"CREATE POLICY org_isolation_scans ON scans FOR ALL USING ({scan_of_org}) WITH CHECK ({scan_of_org})")
+    finding_of_org = (
+        "EXISTS (SELECT 1 FROM scans s JOIN repositories r ON r.id = s.repository_id "
+        f"WHERE s.id = findings.scan_id AND r.organization_id = {CURRENT_ORG})"
+    )
+    op.execute(
+        f"CREATE POLICY org_isolation_findings ON findings FOR ALL "
+        f"USING ({finding_of_org}) WITH CHECK ({finding_of_org})"
+    )
+
+    # La Data API de Supabase (roles anon y authenticated) no tiene que ver estas
+    # tablas: Qubitor solo las lee desde el backend. En un Postgres local esos
+    # roles no existen y el bloque no hace nada.
     op.execute("""
-        CREATE POLICY org_isolation_policy ON organizations 
-        FOR ALL USING (id = current_setting('request.jwt.claim.org_id', true)::uuid);
+        DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+                REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+            END IF;
+        END $$;
     """)
-    op.execute("""
-        CREATE POLICY org_isolation_policy_users ON users 
-        FOR ALL USING (organization_id = current_setting('request.jwt.claim.org_id', true)::uuid);
-    """)
-    op.execute("""
-        CREATE POLICY org_isolation_policy_repos ON repositories 
-        FOR ALL USING (organization_id = current_setting('request.jwt.claim.org_id', true)::uuid);
-    """)
-    
+
     # ### end Alembic commands ###
 
 
@@ -125,4 +150,8 @@ def downgrade() -> None:
     op.drop_table('users')
     op.drop_table('repositories')
     op.drop_table('organizations')
+
+    # create_table creó los ENUM: si no se borran, el próximo upgrade falla.
+    for enum_name in ('findingstatus', 'severity', 'scanstatus'):
+        op.execute(f'DROP TYPE IF EXISTS {enum_name}')
     # ### end Alembic commands ###
