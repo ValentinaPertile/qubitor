@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.models import Finding, FindingStatus, Scan, ScanStatus
 from app.orchestrator.pipeline import ScanResult
+from app.orchestrator.triage import TriageResult
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class SqlScanStore:
                     cve=finding.cve,
                     metadata_=_clean(finding.metadata),
                     status=FindingStatus.OPEN,
+                    **_triage_columns(result.triage.get(fingerprint)),
                 )
                 for fingerprint, finding in result.findings.items()
             )
@@ -76,6 +78,18 @@ class SqlScanStore:
                 scan.status = ScanStatus.FAILED
                 scan.error = _clean(error)
                 scan.finished_at = _now()
+
+
+def _triage_columns(evaluation: TriageResult | None) -> dict:
+    """Columnas ai_* del hallazgo; vacías si la IA no lo evaluó."""
+    if evaluation is None:
+        return {}
+    return {
+        "ai_is_false_positive": evaluation.is_false_positive,
+        "ai_adjusted_severity": evaluation.adjusted_severity,
+        "ai_explanation": _clean(evaluation.explanation),
+        "ai_remediation": _clean(evaluation.remediation),
+    }
 
 
 def _get_scan(session: Session, scan_id: str) -> Scan | None:

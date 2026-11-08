@@ -11,6 +11,7 @@ from app.engines.sast import SastEngine
 from app.engines.sca import ScaEngine
 from app.engines.secrets.engine import SecretsEngine
 from app.orchestrator.pipeline import ScanResult, analyze_repository
+from app.orchestrator.triage import load_provider
 from app.storage import archive_scan
 from app.worker.clone import CloneRejected, clone_repository, remove_tree
 from app.worker.progress import report_stage
@@ -35,7 +36,7 @@ def run_scan(scan_id: str, repo_url: str) -> dict:
         repo_path = os.path.join(workdir, "repo")
         report_stage("clone")
         commit_sha = clone_repository(repo_url, repo_path)
-        result = analyze_repository(repo_path, default_engines(), on_stage=report_stage)
+        result = analyze_repository(repo_path, default_engines(), on_stage=report_stage, triage=load_provider())
         if result.failed:
             store.mark_failed(scan_id, "Fallaron todos los motores")
             return _summary("failed", result=result)

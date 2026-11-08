@@ -254,3 +254,23 @@ def test_el_job_guarda_el_escaneo_completo_en_la_base(db, scan_id, monkeypatch, 
     assert scan.status is ScanStatus.COMPLETED
     assert (scan.risk_score, scan.grade, scan.commit_sha) == (95.0, "A", "c" * 40)
     assert len(hallazgos) == 1
+
+
+@necesita_postgres
+def test_guarda_la_evaluacion_de_la_ia(db, scan_id):
+    from app.orchestrator.normalize import fingerprint
+    from app.orchestrator.triage import TriageResult
+    from app.worker.sql_store import SqlScanStore
+
+    evaluado, sin_evaluar = _finding(2), _finding(3)
+    resultado = _resultado(evaluado, sin_evaluar)
+    resultado.triage = {
+        fingerprint(evaluado): TriageResult(True, Severity.LOW, "Es un test\x00", "Nada que hacer"),
+    }
+
+    SqlScanStore(db).save_result(scan_id, "a" * 40, resultado)
+
+    _, [con_ia, sin_ia] = _leer(db, scan_id)
+    assert (con_ia.ai_is_false_positive, con_ia.ai_adjusted_severity) == (True, Severity.LOW)
+    assert (con_ia.ai_explanation, con_ia.ai_remediation) == ("Es un test", "Nada que hacer")
+    assert (sin_ia.ai_is_false_positive, sin_ia.ai_adjusted_severity, sin_ia.ai_explanation) == (None, None, None)
