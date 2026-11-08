@@ -244,6 +244,15 @@ Copiar el bloque de abajo, completar los campos y agregarlo al final de este arc
 - **Responsable:** Juan Ignacio Wilt
 - **PR:** feat(worker): progreso del escaneo por etapa
 
+### [2026-11-08] Conexión del triage con IA en el pipeline
+
+- **Problema abordado:** El plan pone el triage con IA (Módulo E) entre la normalización y el Risk Score, y dice que el orquestador del Módulo A llama a sus funciones. Faltaba ese punto de conexión y guardar la evaluación en la base.
+- **Prompt / Herramienta utilizada:** Claude Code (Claude Opus 5.5).
+- **Código / Arquitectura generada:** `app/orchestrator/triage.py` define el contrato con el Módulo E: una función `triage_findings(findings)` en `app/ai/triage.py` que recibe los hallazgos por fingerprint y devuelve un `TriageResult` (los campos del `response_schema` del plan) por fingerprint. `analyze_repository` la llama si existe, informa la etapa «triage» y calcula el score con la severidad ajustada, sin los falsos positivos. `SqlScanStore` guarda la evaluación en las columnas `ai_*`, que la API ya devolvía en `triage`. 13 tests nuevos.
+- **Validación y Corrección Humana:** Siguiendo el plan, ante cualquier falla de la IA (sin cuota, sin red, respuesta mal formada, módulo que no carga) el escaneo sigue con la severidad original y se registra en el log. Los hallazgos info no se envían, para no gastar cuota en inventario. Se descartan evaluaciones de fingerprints que no se enviaron o con tipos inválidos, en vez de guardarlas. El score con triage usa el mismo criterio que `PATCH /findings/{id}` y que `lib/risk.ts` del frontend. Pendiente: que el Módulo E implemente `triage_findings`; mientras tanto el pipeline funciona igual que antes.
+- **Responsable:** Juan Ignacio Wilt
+- **PR:** feat(orchestrator): conectar el triage con IA
+
 ### [PLANTILLA — completar en próximas entradas]
 
 - **Problema abordado:**
