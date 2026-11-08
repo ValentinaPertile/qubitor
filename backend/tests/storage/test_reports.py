@@ -85,23 +85,12 @@ def test_el_reporte_tiene_el_resultado_completo():
     json.dumps(reporte)
 
 
-def test_el_cbom_tiene_solo_la_criptografia_tambien_la_segura():
+def test_el_cbom_es_cyclonedx_con_solo_la_criptografia():
     cbom = build_cbom("scan1", "https://github.com/org/repo", "abc123", _resultado())
 
-    assert cbom["algorithms"] == ["ECDSA", "RSA", "SHA-256"]
-    assert [(u["file_path"], u["line"]) for u in cbom["usages"]] == [
-        ("app/keys.py", 10), ("app/keys.py", 25), ("app/signing.js", 5),
-    ]
-    assert {u["severity"] for u in cbom["usages"]} == {"medium", "info"}
-
-
-def test_el_cbom_usa_el_titulo_si_el_hallazgo_no_trae_algoritmo():
-    resultado = _resultado()
-    resultado.findings = {"fp": _hallazgo("crypto", "crypto.classic.weak-hash", Severity.HIGH, "a.py", 1)}
-
-    cbom = build_cbom("scan1", "url", "sha", resultado)
-
-    assert cbom["algorithms"] == ["Título de crypto.classic.weak-hash"]
+    assert cbom["bomFormat"] == "CycloneDX"
+    assert cbom["specVersion"] == "1.6"
+    assert [c["name"] for c in cbom["components"]] == ["ECDSA", "RSA", "SHA-256"]
 
 
 def test_guarda_el_reporte_y_el_cbom_como_descarga():
@@ -110,10 +99,14 @@ def test_guarda_el_reporte_y_el_cbom_como_descarga():
     assert archive_scan("scan1", "url", "sha", _resultado(), storage=ReportStorage(s3, "qubitor")) is True
 
     assert set(s3.objetos) == {("qubitor", "reports/scan1/report.json"), ("qubitor", "reports/scan1/cbom.json")}
-    guardado = s3.objetos[("qubitor", "reports/scan1/cbom.json")]
-    assert guardado["type"].startswith("application/json")
-    assert guardado["disposition"] == 'attachment; filename="qubitor-scan1-cbom.json"'
-    assert json.loads(guardado["body"])["scan_id"] == "scan1"
+    reporte = s3.objetos[("qubitor", "reports/scan1/report.json")]
+    assert reporte["type"].startswith("application/json")
+    assert reporte["disposition"] == 'attachment; filename="qubitor-scan1-report.json"'
+    assert json.loads(reporte["body"])["scan_id"] == "scan1"
+    cbom = s3.objetos[("qubitor", "reports/scan1/cbom.json")]
+    assert cbom["type"].startswith("application/vnd.cyclonedx+json")
+    assert cbom["disposition"] == 'attachment; filename="qubitor-scan1-cbom.cdx.json"'
+    assert json.loads(cbom["body"])["bomFormat"] == "CycloneDX"
 
 
 def test_url_firmada_que_vence():
@@ -186,6 +179,6 @@ def test_contra_un_bucket_real_sube_y_descarga_con_la_url_firmada():
 
     assert archive_scan(scan_id, "url", "sha", _resultado(), storage=storage) is True
     with urllib.request.urlopen(storage.signed_url(scan_id, "cbom", expires=60)) as respuesta:
-        assert json.load(respuesta)["algorithms"] == ["ECDSA", "RSA", "SHA-256"]
+        assert [c["name"] for c in json.load(respuesta)["components"]] == ["ECDSA", "RSA", "SHA-256"]
     storage.client.delete_object(Bucket=storage.bucket, Key=report_key(scan_id, "report"))
     storage.client.delete_object(Bucket=storage.bucket, Key=report_key(scan_id, "cbom"))

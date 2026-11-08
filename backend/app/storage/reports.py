@@ -3,8 +3,8 @@
 Al terminar un escaneo se guardan dos archivos JSON:
 
 - `reports/<scan_id>/report.json`: el resultado completo (Risk Score y hallazgos).
-- `reports/<scan_id>/cbom.json`: el inventario criptográfico (CBOM), solo los
-  hallazgos del motor de criptografía.
+- `reports/<scan_id>/cbom.json`: el inventario criptográfico (CBOM) en formato
+  CycloneDX 1.6, solo los hallazgos del motor de criptografía.
 
 El bucket es privado: la interfaz los descarga con URLs firmadas que vencen.
 Sin las variables `R2_*` no se guarda nada y el escaneo sigue igual, como el
@@ -21,11 +21,16 @@ from typing import Any, Literal, Protocol
 
 from app.engines.base import Finding, Severity
 from app.orchestrator.pipeline import ScanResult
+from app.storage.cyclonedx import build_cyclonedx
 
 logger = logging.getLogger(__name__)
 
 ReportKind = Literal["report", "cbom"]
 REPORT_KINDS: tuple[ReportKind, ...] = ("report", "cbom")
+
+# Tipo de contenido y nombre con el que se descarga cada archivo.
+_CONTENT_TYPES = {"report": "application/json", "cbom": "application/vnd.cyclonedx+json"}
+_FILE_NAMES = {"report": "report.json", "cbom": "cbom.cdx.json"}
 
 # Lo que dura una URL firmada. Corto: alcanza para descargar, no para compartir.
 SIGNED_URL_SECONDS = 10 * 60
@@ -62,28 +67,8 @@ def build_report(scan_id: str, repo_url: str, commit_sha: str, result: ScanResul
 
 
 def build_cbom(scan_id: str, repo_url: str, commit_sha: str, result: ScanResult) -> dict:
-    """Inventario criptográfico: todo uso de criptografía, también el seguro."""
-    entries = [
-        {
-            "algorithm": _algorithm(finding),
-            "rule_id": finding.rule_id,
-            "severity": finding.severity.value,
-            "file_path": finding.file_path,
-            "line": finding.line,
-            "fingerprint": fp,
-        }
-        for fp, finding in result.findings.items()
-        if finding.engine == "crypto"
-    ]
-    entries.sort(key=lambda entry: (entry["file_path"], entry["line"] or 0))
-    return {
-        "scan_id": scan_id,
-        "repository_url": repo_url,
-        "commit_sha": commit_sha,
-        "generated_at": _now(),
-        "algorithms": sorted({entry["algorithm"] for entry in entries}),
-        "usages": entries,
-    }
+    """Inventario criptográfico en CycloneDX 1.6: todo uso de criptografía, también el seguro."""
+    return build_cyclonedx(scan_id, repo_url, commit_sha, result.findings)
 
 
 class ReportStorage:
@@ -96,9 +81,9 @@ class ReportStorage:
             Bucket=self.bucket,
             Key=report_key(scan_id, kind),
             Body=json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8"),
-            ContentType="application/json; charset=utf-8",
+            ContentType=f"{_CONTENT_TYPES[kind]}; charset=utf-8",
             # Al abrir la URL firmada el navegador descarga el archivo con este nombre.
-            ContentDisposition=f'attachment; filename="qubitor-{scan_id}-{kind}.json"',
+            ContentDisposition=f'attachment; filename="qubitor-{scan_id}-{_FILE_NAMES[kind]}"',
         )
 
     def signed_url(self, scan_id: str, kind: ReportKind, expires: int = SIGNED_URL_SECONDS) -> str | None:
@@ -188,11 +173,6 @@ def _finding_dict(fp: str, finding: Finding) -> dict:
         "cve": finding.cve,
         "metadata": finding.metadata,
     }
-
-
-def _algorithm(finding: Finding) -> str:
-    algorithm = finding.metadata.get("algorithm")
-    return algorithm if isinstance(algorithm, str) else finding.title
 
 
 def _status_code(error: Exception) -> int | None:

@@ -227,6 +227,15 @@ Copiar el bloque de abajo, completar los campos y agregarlo al final de este arc
 - **Responsable:** Valentina Pértile de la Vega
 - **PR:** #24
 
+### [2026-11-08] CBOM en formato CycloneDX 1.6 (backend/app/storage/cyclonedx.py)
+
+- **Problema abordado:** El inventario criptográfico (CBOM) tenía un formato propio. CycloneDX 1.6 es el estándar que incorpora activos criptográficos, así que el CBOM que se guarda en R2 se puede abrir con cualquier herramienta que lea CycloneDX.
+- **Prompt / Herramienta utilizada:** Claude Code (Claude Opus 5.5).
+- **Código / Arquitectura generada:** `cyclonedx.py` arma un componente `cryptographic-asset` por algoritmo, con su primitiva (`pke`, `signature`, `key-agree`, `hash`, `block-cipher`, etc.), sus funciones, el nivel de seguridad clásico y la categoría cuántica de NIST (0 para lo que rompe Shor y lo que ya está roto hoy), y cada lugar del código donde aparece (`evidence.occurrences` con archivo y línea). La severidad, la amenaza cuántica y las reglas de Qubitor van como `properties`. TLS sin validar se registra como protocolo. Agregado después: las reglas de certificados de `certs.py` (PR #34); la clave de cada certificado entra como algoritmo y cada certificado como componente `certificate` con sujeto, vencimiento y sus problemas (firma SHA-1, vencido) como `properties`. `reports.py` guarda este CBOM en R2 como `application/vnd.cyclonedx+json` y se descarga como `cbom.cdx.json`.
+- **Validación y Corrección Humana:** Leí el código de `cyclonedx.py` y el cambio en `reports.py`, corrí `pytest` en mi máquina (también con `QUBITOR_TESTS_RED=1`, que valida contra el esquema oficial) y revisé el JSON de un CBOM generado. Los certificados (agregados después) tienen 4 tests más y entran en la validación contra el esquema oficial; quedan pendientes de mi revisión. Cubren: 16 tests en `test_cyclonedx.py` (agrupación por algoritmo, niveles de seguridad, criptografía clásica, TLS como protocolo, regla desconocida, peor severidad, otros motores afuera) y 2 que validan contra el esquema JSON oficial de CycloneDX 1.6 con todas las reglas de `pqc.py` y `classic.py` (con `QUBITOR_TESTS_RED=1`, porque bajan el esquema). El CBOM del repo de demo también valida sin errores.
+- **Responsable:** Valentina Pértile de la Vega
+- **PR:** #31
+
 ### [PLANTILLA — completar en próximas entradas]
 
 - **Problema abordado:**
