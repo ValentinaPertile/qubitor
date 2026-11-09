@@ -11,6 +11,7 @@ import DependenciesPage from '@/features/dependencies/DependenciesPage'
 import HistoryPage from '@/features/history/HistoryPage'
 import PqcPage from '@/features/pqc/PqcPage'
 import { RequireAuth } from '@/lib/auth'
+import SecretsPage from '@/features/secrets/SecretsPage'
 
 /**
  * Rutas de la app. Para sumar una vista, reemplazar su ModulePlaceholder por
@@ -34,10 +35,7 @@ export default function App() {
           path="code"
           element={<ModulePlaceholder title="Código inseguro" owner="Módulo C" folder="features/code" />}
         />
-        <Route
-          path="secrets"
-          element={<ModulePlaceholder title="Secretos" owner="Módulo C" folder="features/secrets" />}
-        />
+        <Route path="secrets" element={<SecretsPage />} />
         <Route path="pqc" element={<PqcPage />} />
         <Route path="dependencies" element={<DependenciesPage />} />
         <Route path="history" element={<HistoryPage />} />
