@@ -22,7 +22,7 @@ import urllib.request
 from urllib.error import URLError
 
 from app.engines.sca.manifests import Dependency
-from app.engines.sca.osv import OsvClient
+from app.engines.sca.osv import USER_AGENT, OsvClient
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,11 @@ class KvCache:
             url,
             data=json.dumps(body).encode(),
             method=method,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.api_token}"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_token}",
+                "User-Agent": USER_AGENT,
+            },
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:

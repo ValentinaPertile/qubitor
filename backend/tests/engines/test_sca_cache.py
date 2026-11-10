@@ -227,3 +227,16 @@ def test_kv_con_error_de_la_api_lanza_kverror(monkeypatch):
 
     with pytest.raises(KvError):
         KvCache("cuenta", "ns", "token-falso").get_many(["a"])
+
+
+def test_kv_se_identifica_con_user_agent_propio(monkeypatch):
+    agentes = []
+
+    def urlopen(request, timeout):
+        agentes.append(request.get_header("User-agent"))
+        return Respuesta(json.dumps({"success": True, "result": {"values": {}}}).encode())
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+
+    KvCache("cuenta", "ns", "token").get_many(["a"])
+    assert agentes == ["Qubitor"]

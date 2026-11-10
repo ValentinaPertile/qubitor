@@ -87,3 +87,17 @@ def test_sin_conexion_se_convierte_en_osv_error(monkeypatch):
 
     with pytest.raises(OsvError):
         OsvClient().get_vuln("GHSA-x84v-xcm2-53pg")
+
+
+def test_se_identifica_con_user_agent_propio(monkeypatch):
+    agentes = []
+
+    def urlopen(request, timeout):
+        agentes.append(request.get_header("User-agent"))
+        raise URLError("cortado acá")
+
+    monkeypatch.setattr(osv.urllib.request, "urlopen", urlopen)
+
+    with pytest.raises(OsvError):
+        OsvClient().get_vuln("GHSA-x84v-xcm2-53pg")
+    assert agentes == ["Qubitor"]

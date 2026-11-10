@@ -12,6 +12,8 @@ from urllib.parse import quote
 from app.engines.sca.manifests import Dependency
 
 OSV_API = "https://api.osv.dev/v1"
+# Sin User-Agent, urllib manda `Python-urllib/3.x`, que Cloudflare puede bloquear (error 1010).
+USER_AGENT = "Qubitor"
 BATCH_SIZE = 1000   # máximo de consultas por pedido que acepta querybatch
 # Detalles de vulnerabilidades que se piden a OSV al mismo tiempo.
 MAX_PARALLEL_REQUESTS = 8
@@ -57,7 +59,7 @@ class OsvClient:
     def _request(self, method: str, url: str, body: dict | None = None) -> dict:
         data = json.dumps(body).encode() if body is not None else None
         request = urllib.request.Request(
-            url, data=data, method=method, headers={"Content-Type": "application/json"},
+            url, data=data, method=method, headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
