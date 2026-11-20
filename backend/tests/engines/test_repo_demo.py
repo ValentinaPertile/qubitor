@@ -38,7 +38,17 @@ def test_detecta_la_criptografia_post_cuantica_plantada(repo_demo):
         ("crypto.pqc.aes-128", "app/keys.py", 20, "low"),
         ("crypto.pqc.inventory.hash", "app/keys.py", 25, "info"),
         ("crypto.pqc.ecdsa", "app/signing.js", 5, "medium"),
+        # AES-ECB plantado por el Módulo C: sin tamaño de clave, solo va al inventario.
+        ("crypto.pqc.inventory.aes", "app/crypto_utils.py", 14, "info"),
     }
+
+
+def test_rsa_de_1024_se_reporta_una_sola_vez_como_clasica(repo_demo):
+    """El RSA de 1024 bits del Módulo C sale como high (clásica), no también como medium (pqc)."""
+    en_la_linea = {h.rule_id for h in CryptoEngine().scan(repo_demo)
+                   if h.file_path == "app/crypto_utils.py" and h.line == 9}
+
+    assert en_la_linea == {"crypto.classic.rsa-weak-key"}
 
 
 def test_detecta_las_dependencias_vulnerables_plantadas(repo_demo):
