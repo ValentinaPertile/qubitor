@@ -10,9 +10,9 @@
     "traces": { "enabled": true, "head_sampling_rate": 0.1 }
   },
   // Entregas ya procesadas (X-GitHub-Delivery), para no lanzar dos escaneos por el mismo push.
-  // Crear con `npx wrangler kv namespace create DELIVERIES` y reemplazar el id.
+  // Namespace creado con `npx wrangler kv namespace create DELIVERIES`.
   "kv_namespaces": [
-    { "binding": "DELIVERIES", "id": "reemplazar-por-el-id-del-namespace" }
+    { "binding": "DELIVERIES", "id": "74ab475c0e3d4bfc96551dc1bc6ad1c5" }
   ],
   "vars": {
     // URL pública de la API de Qubitor en Render, sin barra final.
