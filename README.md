@@ -17,7 +17,7 @@ Plataforma de **auditoría continua de seguridad**. Conectás un repositorio de 
 | Chiappini, Valentino | 33072 | E — Integración con GitHub, triage con IA y webhook |
 
 ## Cómo funciona un escaneo
-
+ 
 ```
 POST /repositories/{id}/scans  →  cola (Redis)  →  scan-worker
    │
