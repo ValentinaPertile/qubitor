@@ -4,25 +4,22 @@ La infraestructura de Render está definida como código en [`render.yaml`](../r
 
 | Entorno | Rama | Servicios en Render | Cuándo despliega |
 |---|---|---|---|
-| `staging` | `develop` | `qubitor-api-staging`, `qubitor-scan-worker-staging` | Cuando un commit de `develop` con la CI en verde llega al fork. |
-| `production` | `main` | `qubitor-api`, `qubitor-scan-worker` | Cuando un commit de `main` con la CI en verde llega al fork. |
+| `staging` | `develop` | `qubitor-api-staging`, `qubitor-scan-worker-staging` | Cuando la CI pasa en verde para un commit de `develop`. |
+| `production` | `main` | `qubitor-api`, `qubitor-scan-worker` | Cuando la CI pasa en verde para un commit de `main`. |
 
 Flujo: `feature/*` → PR a `develop` → se prueba en staging → PR de `develop` a `main` → producción. Cómo abrir y mergear cada PR (incluida la estrategia de merge): [CONTRIBUTING.md](CONTRIBUTING.md#3-pull-requests).
 
-## Render despliega desde un fork
+## Cuándo despliega Render
 
-Render está conectado al fork [`MatiBalda20/qubitor`](https://github.com/MatiBalda20/qubitor), no a este repo. Para que un merge llegue solo a Render, el fork tiene un workflow de sincronización:
+Render está conectado directo a este repo mediante la app de Render en GitHub. Cada servicio tiene el auto-deploy en **After CI Checks Pass** (`autoDeployTrigger: checksPass` en `render.yaml`):
 
 ```
-merge en ValentinaPertile/qubitor ──▶ CI en verde ──▶ sync (cada ~10 min) ──▶ fork ──▶ Render
+merge en develop / main ──▶ CI (GitHub Actions) en verde ──▶ Render despliega
 ```
 
-- El workflow vive en la rama `sync` del fork, que es su rama por defecto (los workflows programados de GitHub solo corren desde ahí). `main` y `develop` del fork son copias exactas de las de este repo.
-- Cada corrida mira el último commit de `main` y de `develop` acá y lo copia al fork **solo si los jobs de CI `Frontend (lint + build)` y `Backend (pytest)` pasaron en verde** para ese commit. Si la CI está en rojo o todavía corre, no copia nada y lo reintenta en la corrida siguiente.
-- Solo avanza las ramas (fast-forward): nunca reescribe historia. **No se commitea nunca directo en `main` o `develop` del fork**; si pasa, el sync falla hasta que se corrija.
-- Por eso los servicios usan `autoDeployTrigger: commit` y no `checksPass`: la CI ya se verificó acá, y los pushes que hace el sync no corren la CI del fork.
-- Para no esperar al cron (GitHub puede atrasarlo varios minutos): fork → Actions → *Sync desde el repo del equipo* → *Run workflow*.
-- Si un commit modifica archivos de `.github/workflows/`, GitHub no deja que el token del workflow lo copie y la corrida falla. Esa vez se sincroniza a mano con el botón *Sync fork* de la rama en el fork.
+- La CI corre en cada push a `main` y a `develop` (`.github/workflows/ci.yml`). Render espera a que terminen los jobs de ese commit y solo despliega si pasaron todos.
+- Si la CI queda en rojo, Render no despliega y el entorno sigue con la versión anterior. Se arregla con otro PR; no hace falta tocar Render.
+- Para desplegar sin esperar, o volver a intentar: Render → servicio → **Manual Deploy** → *Deploy latest commit*.
 
 ## Qué está en Render y qué no
 

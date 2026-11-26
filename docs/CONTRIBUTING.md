@@ -12,19 +12,19 @@ Guía de trabajo para el equipo (Balda, Pértile de la Vega, Wilt, Marini, Chiap
   - `feature/infra-supabase-rls`
 - `hotfix/<descripción-corta>` — solo para un error urgente en producción. Sale de `main`.
 
-No se commitea directo a `main` ni a `develop` bajo ninguna circunstancia, y **nunca se hace force push** a ninguna de las dos: el deploy copia esas ramas avanzándolas, y una historia reescrita lo frena (ver [deploy.md](deploy.md)).
+No se commitea directo a `main` ni a `develop` bajo ninguna circunstancia, y **nunca se hace force push** a ninguna de las dos: son las ramas que se despliegan (ver [deploy.md](deploy.md)).
 
 ### Cómo llega un cambio a Render
 
-Render no está conectado a este repo sino al fork `MatiBalda20/qubitor`. Un workflow del fork copia `main` y `develop` desde acá cada ~10 minutos, **solo si la CI pasó en verde** para ese commit:
+Render está conectado directo a este repo y despliega cada rama solo cuando la CI pasó en verde para ese commit:
 
 ```
-feature/x ──PR──▶ develop ──CI verde──▶ sync al fork ──▶ Render staging
+feature/x ──PR──▶ develop ──CI verde──▶ Render staging
                      │
-                     └──PR──▶ main ──CI verde──▶ sync al fork ──▶ Render producción
+                     └──PR──▶ main ──CI verde──▶ Render producción
 ```
 
-Un merge tarda entre 10 y 20 minutos en estar desplegado (lo que tarda la CI más el próximo sync). Para no esperar: fork → Actions → *Sync desde el repo del equipo* → *Run workflow*.
+Un merge está desplegado en unos minutos: lo que tarda la CI más el build de Render.
 
 ## 2. Conventional Commits
 
@@ -82,16 +82,13 @@ docs(ai-decisions): registrar decisión sobre índice de findings por severidad
 1. Mergear las features en `develop` y esperar a que se desplieguen en staging.
 2. Probar en staging: `https://qubitor-api-staging.onrender.com/health` y un escaneo real con el frontend local apuntando a esa URL (`VITE_API_URL`). Staging en plan free se duerme tras 15 minutos sin uso: el primer pedido tarda ~1 minuto.
 3. Abrir un PR de `develop` a `main` titulado `chore(release): …` con la lista de lo que entra. Revisión cruzada como cualquier PR.
-4. Mergear con **Create a merge commit**. Cuando la CI de `main` termina en verde, el sync lo lleva a producción.
+4. Mergear con **Create a merge commit**. Cuando la CI de `main` termina en verde, Render lo despliega en producción.
 5. Comprobar `https://qubitor-api.onrender.com/health` y la app publicada.
 
 ### Si algo no se despliega
 
-- **La CI de `main` o `develop` quedó en rojo después del merge:** el sync no copia ese commit y Render sigue con la versión anterior. Se arregla con otro PR; no se revierte a mano en el fork.
-- **El PR modifica archivos de `.github/workflows/`:** GitHub no deja que el sync copie esos commits y la corrida falla. Esa vez, en el fork, abrir la rama (`main` o `develop`) y apretar *Sync fork*.
-- **El sync falla porque la rama "se desvió":** alguien commiteó directo en el fork o hizo force push acá. Avisar al responsable del Módulo B.
-
-El estado de cada sync está en la pestaña Actions del fork.
+- **La CI de `main` o `develop` quedó en rojo después del merge:** Render no despliega ese commit y sigue con la versión anterior. Se arregla con otro PR.
+- **La CI está en verde pero Render no desplegó:** en Render, abrir el servicio y mirar *Events*. Se puede forzar con **Manual Deploy** → *Deploy latest commit*. Si sigue sin desplegar, avisar al responsable del Módulo B.
 
 ## 4. Gestión de tareas (Kanban)
 
